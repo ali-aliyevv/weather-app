@@ -28,17 +28,9 @@ interface WeatherDetail {
   dt: number;
   main: MainWeather;
   weather: WeatherDescription[];
-  clouds: {
-    all: number;
-  };
-  wind: {
-    speed: number;
-    deg: number;
-    gust: number;
-  };
-  sys: {
-    pod: string;
-  };
+  clouds: { all: number };
+  wind: { speed: number; deg: number; gust: number };
+  sys: { pod: string };
   visibility: number;
   pop: number;
   dt_txt: string;
@@ -66,10 +58,7 @@ interface WeatherDescription {
 interface City {
   id: number;
   name: string;
-  coord: {
-    lat: number;
-    lon: number;
-  };
+  coord: { lat: number; lon: number };
   country: string;
   population: number;
   timezone: number;
@@ -84,16 +73,18 @@ export default function Home() {
   const { isLoading, error, data } = useQuery<WeatherData>({
     queryKey: ["forecast", place],
     queryFn: async () => {
-  const res = await axios.get<WeatherData>(
-  `/api/forecast?q=${place}&cnt=56`
-);
-
+      // ✅ API key client-də görünmür
+      const res = await axios.get<WeatherData>(
+        `/api/forecast?q=${encodeURIComponent(place)}&cnt=56`
+      );
       return res.data;
     },
-    enabled: Boolean(place), // place boşdursa request atmasın
+    enabled: Boolean(place),
+    staleTime: 1000 * 60 * 5, // 5 dəqiqə
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
-  // 1) ƏVVƏL check-lər (səndəki error-un əsas səbəbi bu idi)
   if (isLoading) {
     return (
       <div className="w-[400px] h-[200px] m-auto flex items-center justify-center text-center mt-[230px]">
@@ -103,17 +94,22 @@ export default function Home() {
   }
 
   if (error) {
-    return <div>Error: {(error as any)?.message}</div>;
+    const msg =
+      (error as any)?.response?.data?.error ||
+      (error as any)?.message ||
+      "Unknown error";
+    return (
+      <div className="text-center mt-10 text-red-500">
+        Weather service error: {msg}
+      </div>
+    );
   }
 
   if (!data?.list?.length) {
-    // data gəlməyibsə və ya list boşdursa — heç bir hesablama etmə
     return <div className="text-center mt-10">No data</div>;
   }
 
-  // 2) Data var -> bundan sonra təhlükəsiz şəkildə istifadə et
   const Weekdays = data.list[0];
-  console.log("data", data);
 
   const uniqueDates = Array.from(
     new Set(
@@ -133,7 +129,7 @@ export default function Home() {
         return entryDate === date && entryTime >= 6;
       });
     })
-    .filter(Boolean) as WeatherDetail[]; // undefined-ləri atırıq
+    .filter(Boolean) as WeatherDetail[];
 
   return (
     <>
@@ -207,17 +203,11 @@ export default function Home() {
 
                 <Container className="bg-yellow-300/80 px-6 gap-4 justify-between overflow-x-auto">
                   <ForecastSevenDetails
-                    visibility={MetersToKilometers(Weekdays?.visibility ?? 1000)} // ✅ typo düzəldi
+                    visibility={MetersToKilometers(Weekdays?.visibility ?? 1000)}
                     airPressure={`${Weekdays?.main?.pressure ?? 0} hPa`}
                     humidity={`${Weekdays?.main?.humidity ?? 0} %`}
-                    sunrise={`${format(
-                      fromUnixTime(data.city.sunrise ?? 0),
-                      "H:mm"
-                    )} am`}
-                    sunset={`${format(
-                      fromUnixTime(data.city.sunset ?? 0),
-                      "H:mm"
-                    )} pm`}
+                    sunrise={`${format(fromUnixTime(data.city.sunrise ?? 0), "H:mm")} am`}
+                    sunset={`${format(fromUnixTime(data.city.sunset ?? 0), "H:mm")} pm`}
                     windSpeed={changewindspeed(Weekdays?.wind?.speed ?? 0)}
                   />
                 </Container>
